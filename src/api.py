@@ -1,6 +1,7 @@
 import asyncio
 import json
 from .topic import Topic
+from .socketwrapper import SocketWrapper
 
 class DotDict(dict):
     """ A dictionary subclass supporting dot.notation.
@@ -32,10 +33,11 @@ class OpenSpaceApi:
     :param socket - An instance of SocketWrapper. 
     The socket should not be connected prior to calling this constructor. """
 
-    def __init__(self, socket):
+    def __init__(self, ADDRESS, PORT):
         self._callbacks = {}
         self._nextTopicId = 0
-
+        
+        socket = SocketWrapper(ADDRESS, PORT)
         socket.onConnect(lambda: None)
         socket.onDisconnect(lambda: None)
         socket.onMessage(self._handle_message)

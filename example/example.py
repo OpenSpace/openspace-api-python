@@ -1,15 +1,10 @@
 import asyncio
-
 from src.api import OpenSpaceApi, DotDict
-from src.socketwrapper import SocketWrapper
-# from src.websocketwrapper import WebSocketWrapper
 
-# Create a SocketWrapper instance with the OpenSpace address and port
 ADDRESS = 'localhost'
 PORT = 4681
-socket = SocketWrapper(ADDRESS, PORT)
-# Create an OpenSpaceApi instance with the SocketWrapper
-api = OpenSpaceApi(socket)
+# Create an OpenSpaceApi instance with the OpenSpace address and port
+api = OpenSpaceApi(ADDRESS, PORT)
 
 # This event is used to cleanly exit the event loop.
 disconnect = asyncio.Event()
