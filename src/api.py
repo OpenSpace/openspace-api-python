@@ -38,7 +38,9 @@ class OpenSpaceApi:
         self._nextTopicId = 0
         
         socket = SocketWrapper(ADDRESS, PORT)
-        socket.onConnect(lambda: None)
+        async def __onConnect():
+            pass
+        socket.onConnect(__onConnect)
         socket.onDisconnect(lambda: None)
         socket.onMessage(self._handle_message)
 
