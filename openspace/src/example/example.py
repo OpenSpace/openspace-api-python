@@ -4,7 +4,7 @@ import openspace
 ADDRESS = 'localhost'
 PORT = 4681
 # Create an OpenSpaceApi instance with the OpenSpace address and port
-api = openspace.Api(ADDRESS, PORT)
+os = openspace.Api(ADDRESS, PORT)
 
 # This event is used to cleanly exit the event loop.
 disconnect = asyncio.Event()
@@ -21,22 +21,22 @@ async def scaleEarth(value):
     print("Scaling Earth")
 
     property = "Scene.Earth.Scale.Scale"
-    data = await api.getProperty(property)
-    data = api.toDotDict(data)
+    data = await os.getProperty(property)
+    data = os.toDotDict(data)
 
     print(f"Current scale value: {data.Value}")
-    api.setProperty(property, value)
+    os.setProperty(property, value)
 
 async def subscribeToEarthScaleUpdates():
     print("Subscribing to Earth scale updates")
 
-    subscription = api.subscribeToProperty("Scene.Earth.Scale.Scale")
+    subscription = os.subscribeToProperty("Scene.Earth.Scale.Scale")
     # We can iterate the subscription using by looping nextValue()
     i = 0
     while i < 3:
         print("Waiting for Earth scale update...")
-        result = await api.nextValue(subscription)
-        dic = api.toDotDict(result)
+        result = await os.nextValue(subscription)
+        dic = os.toDotDict(result)
         print(f"{dic.Description.Identifier} changed to {dic.Value}")
         i += 1
     subscription.cancel()
@@ -51,7 +51,7 @@ async def subscribeToEarthScaleUpdates():
     #     i += 1
 
 async def subscribeToEventOnce(events):
-    topic = api.subscribeToEvent(events)
+    topic = os.subscribeToEvent(events)
 
     async for future in topic.iterator():
         print(f"Waiting for {events} to fire...")
@@ -60,7 +60,7 @@ async def subscribeToEventOnce(events):
         topic.cancel()
 
 async def subscribeToEventWithCallback(events, callback):
-    topic = api.subscribeToEvent(events)
+    topic = os.subscribeToEvent(events)
     j = 0
     async for future in topic.iterator():
         print(f"Subscription callback waiting for {events} to fire...")
@@ -136,13 +136,13 @@ async def main(openspace):
     
 async def onConnect():
     PASSWORD = ''
-    res = await api.authenticate(PASSWORD)
+    res = await os.authenticate(PASSWORD)
     if not res[1] == 'authorized':
         disconnect.set()
         return
     
     print("Connected to OpenSpace")
-    openspace = await api.singleReturnLibrary()
+    openspace = await os.singleReturnLibrary()
 
     # Create a main task to run all function logic
     asyncio.create_task(main(openspace), name="Main")
@@ -154,17 +154,17 @@ def onDisconnect():
     # If connection failed this helps the program exit gracefully
     disconnect.set()
 
-api.onConnect(onConnect)
-api.onDisconnect(onDisconnect)
+os.onConnect(onConnect)
+os.onDisconnect(onDisconnect)
 
 # Main loop serves as an entry point to allow for authentication before running any other
 # logic. This part can be skipped if no authentication is needed, reducing the overhead of 
 # creating multiple tasks before main() is run. 
 async def mainLoop():
-    api.connect()
+    os.connect()
     # Wait for the disconnect event to be set
     await disconnect.wait()
-    api.disconnect()
+    os.disconnect()
 
 loop = asyncio.new_event_loop()
 loop.run_until_complete(mainLoop())
