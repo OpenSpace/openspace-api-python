@@ -1,0 +1,19 @@
+[project]
+name = "openspace-api"
+version = "0.1.0"
+authors = [
+  { name="OpenSpace developers", email="api-python-aaaamu4sytkkayaafonqgmouri@team-openspace.slack.com" },
+]
+description = "Python library to interface with OpenSpace using sockets"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://openspaceproject.com"
+OpenSpace = "https://github.com/OpenSpace/OpenSpace"
+Source = "https://github.com/OpenSpace/openspace-api-python/"
