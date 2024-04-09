@@ -1,10 +1,10 @@
 import asyncio
-from src.api import OpenSpaceApi, DotDict
+import openspace
 
 ADDRESS = 'localhost'
 PORT = 4681
 
-api = OpenSpaceApi(ADDRESS, PORT)
+api = openspace.Api(ADDRESS, PORT)
 
 async def setPause():
     api.connect()

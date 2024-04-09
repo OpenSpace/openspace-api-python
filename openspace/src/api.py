@@ -28,7 +28,7 @@ class DotDict(dict):
     def __dir__(self):
         return dir(dict) + list(self.keys())
 
-class OpenSpaceApi:
+class Api:
     """ Construct an instance of the OpenSpace API.
     :param socket - An instance of SocketWrapper. 
     The socket should not be connected prior to calling this constructor. """

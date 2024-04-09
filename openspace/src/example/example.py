@@ -1,10 +1,10 @@
 import asyncio
-from src.api import OpenSpaceApi, DotDict
+import openspace
 
 ADDRESS = 'localhost'
 PORT = 4681
 # Create an OpenSpaceApi instance with the OpenSpace address and port
-api = OpenSpaceApi(ADDRESS, PORT)
+api = openspace.Api(ADDRESS, PORT)
 
 # This event is used to cleanly exit the event loop.
 disconnect = asyncio.Event()
