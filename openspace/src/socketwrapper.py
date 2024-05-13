@@ -26,7 +26,6 @@ class SocketWrapper:
         while True:
             try:
                 data = await self._loop.sock_recv(self._client, 1024)
-                # self._client.recv(1024).decode()
                 if data:
                     self._inBuffer += data.decode()
                     while '\n' in self._inBuffer:
@@ -45,13 +44,13 @@ class SocketWrapper:
                 print(f"Connection exited with: {e}")
                 break
 
-        if not self._disconnecting:
-            self.disconnect()
+        self.disconnect()
 
     def connect(self):
         self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             self._client.connect((self._address, self._port))
+            self._disconnecting = False
             self._loop = asyncio.get_event_loop()
             asyncio.create_task(self._handle_receive(), name="Handle receive")
             asyncio.create_task(self._onConnect(), name="On connect")
