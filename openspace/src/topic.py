@@ -1,6 +1,6 @@
 class Topic:
     """ A channel to communicate with OpenSpace. """
-    
+
     def __init__(self, iterator, talk, cancel):
         """ Construct a topic. (Only for internal use)
         :param `iterator` - An async iterator to represent data from OpenSpace.
@@ -12,7 +12,7 @@ class Topic:
         self._cancel = cancel
 
     def talk(self, data):
-        """ Send data within a topic. 
+        """ Send data within a topic.
         :param `data` - the Python object to send. Must be possible to encode into JSON."""
 
         return self._talk(data)

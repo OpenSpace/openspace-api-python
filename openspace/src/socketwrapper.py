@@ -50,7 +50,7 @@ class SocketWrapper:
 
     def connect(self):
         self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try: 
+        try:
             self._client.connect((self._address, self._port))
             self._loop = asyncio.get_event_loop()
             asyncio.create_task(self._handle_receive(), name="Handle receive")
@@ -59,7 +59,7 @@ class SocketWrapper:
             print(f"Could not connect to {self._address}:{self._port}. Is OpenSpace running?")
             print(f"Error code: {e}")
             self.disconnect()
-        
+
 
     async def send(self, message):
         await self._loop.sock_sendall(self._client, (message + "\n").encode())
@@ -69,8 +69,8 @@ class SocketWrapper:
 
     def disconnect(self):
         if self._disconnecting:
-            return
-        
+             return
+
         self._disconnecting = True
         self._onDisconnect()
         self._client.close()

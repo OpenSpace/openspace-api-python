@@ -6,8 +6,6 @@ PORT = 4681
 
 os = openspace.Api(ADDRESS, PORT)
 
-openspace = openspace.Api(ADDRESS, PORT)
-
 async def setPause():
     os.connect()
     openspace = await os.singleReturnLibrary()
@@ -45,7 +43,7 @@ async def setYourTime():
         timestamp += interval
 
 async def addLayersToGlobe():
-    # ... Prepare the layers 
+    # ... Prepare the layers
     os.connect()
     openspace = await os.singleReturnLibrary()
     output_path = "C:/os/OpenSpaceData/Moon2/"
@@ -56,7 +54,7 @@ async def addLayersToGlobe():
 
 
 # Uncomment function to run
-# asyncio.run(setPause())
+asyncio.run(setPause())
 # asyncio.run(goToGeo())
 # asyncio.run(setYourTime())
 # asyncio.run(addLayersToGlobe())

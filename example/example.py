@@ -13,7 +13,7 @@ disconnect = asyncio.Event()
 # Define a callback function to handle the received payload
 def event_callback(future):
     # The argument passed to this callback is the future object we are awaiting.
-    # To retrieve the result we use `result()` method.  
+    # To retrieve the result we use `result()` method.
     result = future.result()
     print("event_callback:", result)
 
@@ -119,7 +119,7 @@ async def main(openspace):
     await getGeoPosition(openspace)
     await getGeoPositionForCamera(openspace)
     await addSceneGraphNode(openspace)
-    
+
     # Create a task to not block event loop
     earthScale_Task = asyncio.create_task(subscribeToEarthScaleUpdates())
 
@@ -129,18 +129,18 @@ async def main(openspace):
 
     event_Task = asyncio.create_task(subscribeToEventWithCallback(
         ["RenderableEnabled", "RenderableDisabled"], event_callback))
-    
+
     await event_Task
 
     disconnect.set()
-    
+
 async def onConnect():
     PASSWORD = ''
     res = await os.authenticate(PASSWORD)
     if not res[1] == 'authorized':
         disconnect.set()
         return
-    
+
     print("Connected to OpenSpace")
     openspace = await os.singleReturnLibrary()
 
@@ -158,8 +158,8 @@ os.onConnect(onConnect)
 os.onDisconnect(onDisconnect)
 
 # Main loop serves as an entry point to allow for authentication before running any other
-# logic. This part can be skipped if no authentication is needed, reducing the overhead of 
-# creating multiple tasks before main() is run. 
+# logic. This part can be skipped if no authentication is needed, reducing the overhead of
+# creating multiple tasks before main() is run.
 async def mainLoop():
     os.connect()
     # Wait for the disconnect event to be set
