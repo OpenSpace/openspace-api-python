@@ -29,7 +29,7 @@ class DotDict(dict):
         return dir(dict) + list(self.keys())
 
 class Api:
-    """ Construct an instance of the OpenSpace API.
+    """ Construct an instance of the OpenSpace API. \n
     :param socket - An instance of SocketWrapper.
     The socket should not be connected prior to calling this constructor. """
 
@@ -54,7 +54,7 @@ class Api:
                 cb(messageObject['payload'])
 
     def onConnect(self, callback):
-        """ Set the function to execute when connection is established.
+        """ Set the function to execute when connection is established. \n
         :param `callback` - Async function to execute. """
 
         self._socket.onConnect(callback)
@@ -76,11 +76,11 @@ class Api:
         self._socket.disconnect()
 
     def startTopic(self, type: str, payload) -> Topic:
-        """ Initialize a new channel of communication.
+        """ Initialize a new channel of communication. \n
 
-        :param `type` - A string specifying the type of topic to construct.
+        :param `type` - A string specifying the type of topic to construct. \n
         See OpenSpace's server module for available topic types.
-        :param `payload` - An object representing the topic
+        :param `payload` - An object representing the topic \n
         :return - A Topic object. """
 
         if not isinstance(type, str):
@@ -140,8 +140,8 @@ class Api:
         return result
 
     async def authenticate(self, secret):
-        """ Authenticate this client.
-        This must be done if the client is not whitelisted in the openspace.cfg.
+        """ Authenticate this client. \n
+        This must be done if the client is not whitelisted in the openspace.cfg. \n
         :param `secret` - The secret used to authenticate with OpenSpace. """
 
         topic = self.startTopic('authorize', { "key": secret })
@@ -150,8 +150,8 @@ class Api:
         return response
 
     def setProperty(self, property, value):
-        """ Set a property
-        :param `property` - The URI of the property to set.
+        """ Set a property \n
+        :param `property` - The URI of the property to set. \n
         :param `value` - The value to set the property to. """
 
         if not isinstance(property, str):
@@ -161,8 +161,8 @@ class Api:
         topic.cancel()
 
     async def getProperty(self, property):
-        """ Get a property.
-        :param `property` the URI of the property to get.
+        """ Get a property. \n
+        :param `property` the URI of the property to get.\n
         :return `value` - The value of the property. """
 
         if not isinstance(property, str):
@@ -187,8 +187,8 @@ class Api:
         return response
 
     def subscribeToProperty(self, property):
-        """ Subscribe to a property.
-        :param `property`- The URI of the property to subscribe to.
+        """ Subscribe to a property.\n
+        :param `property`- The URI of the property to subscribe to.\n
         :return `Topic` - A topic object to represent the subscription topic.
         when cancelled, this object will unsubscribe to the property. """
         if not isinstance(property, str):
@@ -208,9 +208,9 @@ class Api:
         return Topic(topic.iterator(), topic.talk, cancel)
 
     def subscribeToEvent(self, events):
-        """ Subscribe to an event.
+        """ Subscribe to an event. \n
         :param `event` - The name of the event to subscribe to. For available events,
-        check event.h in OpenSpace core module.
+        check event.h in OpenSpace core module. \n
         :return `Topic` - A topic object to represent the subscription topic.
         when cancelled, this object will unsubscribe to the event. """
 
@@ -236,11 +236,11 @@ class Api:
         return Topic(topic.iterator(), topic.talk, cancel)
 
     async def executeLuaScript(self, script, getReturnValue = True, shouldBeSynchronized = True):
-        """ Execute a lua script.
-        :param `script` - The lua script to execute.
-        :param `getReturnValue`- Specified whether the return value should be collected.
+        """ Execute a lua script. \n
+        :param `script` - The lua script to execute. \n
+        :param `getReturnValue`- Specified whether the return value should be collected. \n
         :param `shouldBeSynchronized  - Specified whether the script should be
-        synchronized on a cluster.
+        synchronized on a cluster. \n
         :return The return value of the script, if `getReturnValue` is true, otherwise
         undefined. """
 
@@ -261,10 +261,10 @@ class Api:
             topic.cancel()
 
     async def executeLuaFunction(self, function: str, args, getReturnValue = True):
-        """ Executa a lua function from the OpenSpace library.
+        """ Executa a lua function from the OpenSpace library. \n
         :param `function`- The lua function to execute (for example
-        `openspace.addSceneGraphNode`)
-        :param `getReturnValue`- Specified whether the return value should be collected.
+        `openspace.addSceneGraphNode`) \n
+        :param `getReturnValue`- Specified whether the return value should be collected. \n
         :return The return value of the script, if `getReturnValue` is true, otherwise
         undefined. """
 
@@ -286,10 +286,10 @@ class Api:
             topic.cancel()
 
     async def library(self, multiReturn: bool) -> DotDict:
-        """ Get an object representing the OpenSpace lua libarary.
+        """ Get an object representing the OpenSpace lua libarary. \n
         :param multiReturn - whether the library should return the raw lua tables.
         If this value is true, the 1-indexed lua table will be returned as a dict
-        If the value is false, then only the first return value will be returned.
+        If the value is false, then only the first return value will be returned. \n
         :return - The lua library, mapped to async python functions. """
 
         def generateAsyncMultiRetFunction(functionName):
@@ -346,14 +346,14 @@ class Api:
         return DotDict(dictionary)
 
     async def singleReturnLibrary(self):
-        """ Get an object representing the OpenSpace lua library.
+        """ Get an object representing the OpenSpace lua library. \n
         :return - The lua library, mapped to async python functions. This method only
         returns the first return value. """
 
         return await self.library(False)
 
     async def multiReturnLibrary(self):
-        """ Get an object representing the OpenSpace lua library.
+        """ Get an object representing the OpenSpace lua library. \n
         :return - The lua library, mapped to async python functions. The values returned
         by the async functions will be the entire lua tables, with 1-indexed values. """
 
