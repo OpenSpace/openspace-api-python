@@ -229,6 +229,7 @@ class Api:
 
         def cancel():
             topic.talk({
+                "event": events,
                 'status': 'stop_subscription'
             })
             topic.cancel()
