@@ -54,7 +54,7 @@ async def subscribeToEventOnce(events):
     topic = os.subscribeToEvent(events)
 
     async for future in topic.iterator():
-        print(f"Waiting for {events} to fire...")
+        print(f"SubscribeToEventOnce: Waiting for {events} to fire...")
         result = await future
         print("Event fired: ", result)
         topic.cancel()
@@ -63,7 +63,7 @@ async def subscribeToEventWithCallback(events, callback):
     topic = os.subscribeToEvent(events)
     j = 0
     async for future in topic.iterator():
-        print(f"Subscription callback waiting for {events} to fire...")
+        print(f"SubscribeToEventWithCallback: Subscription callback waiting for {events} to fire...")
         future.add_done_callback(callback)
         await future
         if j >= 1:
