@@ -236,6 +236,34 @@ class Api:
 
         return Topic(topic.iterator(), topic.talk, cancel)
 
+    def subscribeToLogMessages(self, settings):
+        """ Subscribe to error messages. \n
+        :param `settings` - The settings for the error subscription. Possible settings are \n
+        | `timeStamping`: [True, False] - Whether the error messages should be timestamped.
+        | `dateStamping`: [True, False] - Whether the error messages should be datestamped.
+        | `categoryStamping`: [True, False] - Whether the error messages should be category stamped.
+        | `logLevelStamping`: [True, False] - Whether the error messages should be log level stamped.
+        | `logLevel`: [All, Trace, Debug, Info, Warning, Error, Fatal, None] - The log level to subscribe to.
+
+        :return `Topic` - A topic object to represent the subscription topic.
+        when cancelled, this object will unsubscribe to the error messages. """
+
+        if not isinstance(settings, dict):
+            raise ValueError("Settings must be a dictionary")
+
+        topic = self.startTopic('errorLog', {
+            'event': 'start_subscription',
+            'settings': settings
+        })
+
+        def cancel():
+            topic.talk({
+                'event': 'stop_subscription'
+            })
+            topic.cancel()
+
+        return Topic(topic.iterator(), topic.talk, cancel)
+
     async def executeLuaScript(self, script, getReturnValue = True, shouldBeSynchronized = True):
         """ Execute a lua script. \n
         :param `script` - The lua script to execute. \n
