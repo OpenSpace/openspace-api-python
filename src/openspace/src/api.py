@@ -117,7 +117,6 @@ class Api:
                     # Yield the coroutine for the caller to await, this should allow us
                     # to await several callbacks without them blocking eachother.
                     yield queue.get()
-                    print(queue.qsize())
                 except Exception as e:
                     print("ERROR: in topic:", topic, e)
                     break

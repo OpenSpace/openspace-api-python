@@ -1,6 +1,7 @@
+import asyncio
 import socket
 from threading import Thread
-import asyncio
+from traceback import print_exc
 
 class SocketWrapper:
     def __init__(self, address: str, port: int):
@@ -33,7 +34,8 @@ class SocketWrapper:
                         try:
                             self._onMessage(message)
                         except Exception as e:
-                            print("Error receiving data:", e)
+                            print(f"Error receiving data: {type(e)}: {e}")
+                            print_exc()
                 else:
                     print("Error receiving data from OpenSpace. Connection closed.")
                     break
