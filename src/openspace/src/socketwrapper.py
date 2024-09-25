@@ -32,11 +32,8 @@ class SocketWrapper:
                         message, self._inBuffer = self._inBuffer.split('\n', 1)
                         try:
                             self._onMessage(message)
-                        except asyncio.InvalidStateError:
-                            print("Did not close topic after use. Either use "
-                                  "`async for foo in topic.iterator()` to continue "
-                                  "recieving callbacks or call topic.cancel() to close "
-                                  "the topic")
+                        except Exception as e:
+                            print("Error receiving data:", e)
                 else:
                     print("Error receiving data from OpenSpace. Connection closed.")
                     break

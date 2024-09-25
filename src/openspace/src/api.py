@@ -51,8 +51,10 @@ class Api:
         if 'topic' in messageObject:
             cb = self._callbacks.get(messageObject['topic'])
             if cb:
-                cb(messageObject['payload'])
-
+                if 'payload' in messageObject:
+                    cb(messageObject['payload'])
+                else:
+                    print(f"Error handling message: {messageObject}")
     def onConnect(self, callback):
         """ Set the function to execute when connection is established. \n
         :param `callback` - Async function to execute. """
@@ -108,15 +110,18 @@ class Api:
             # TODO: if we are just iterating once we never return to the while
             # loop to check if cancel_event is set. As such we wont remove the callback
             # function.
+            queue = asyncio.Queue()
+            self._callbacks[topic] = lambda payload: queue.put_nowait(payload)
             while not cancel_event.is_set():
-                # Creates a future obj that we can add callbacks to
-                future = asyncio.Future()
-                self._callbacks[topic] = lambda payload: future.set_result(payload)
-                # Return the future obj
-                yield future
-                # Next time anext(iterator) is called we continute from this point onwards
-                # waiting for the future to be complete
-                await future
+                try:
+                    # Yield the coroutine for the caller to await, this should allow us
+                    # to await several callbacks without them blocking eachother.
+                    yield queue.get()
+                    print(queue.qsize())
+                except Exception as e:
+                    print("ERROR: in topic:", topic, e)
+                    break
+
             # Topic has been canceled, remove callback
             self._callbacks.pop(topic, None)
 
