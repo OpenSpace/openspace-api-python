@@ -1,5 +1,6 @@
 import asyncio
 import json
+from traceback import print_exc
 from .topic import Topic
 from .socketwrapper import SocketWrapper
 
@@ -119,6 +120,7 @@ class Api:
                     yield queue.get()
                 except Exception as e:
                     print("ERROR: in topic:", topic, e)
+                    print_exc()
                     break
 
             # Topic has been canceled, remove callback
