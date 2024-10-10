@@ -3,6 +3,7 @@ import json
 from traceback import print_exc
 from .topic import Topic
 from .socketwrapper import SocketWrapper
+from typing import Callable
 
 class DotDict(dict):
     """ A dictionary subclass supporting dot.notation.
@@ -56,14 +57,14 @@ class Api:
                     cb(messageObject['payload'])
                 else:
                     print(f"Error handling message: {messageObject}")
-    def onConnect(self, callback):
+    def onConnect(self, callback: Callable[[], None]):
         """ Set the function to execute when connection is established. \n
         :param `callback` - Async function to execute. """
 
         self._socket.onConnect(callback)
 
 
-    def onDisconnect(self, callback):
+    def onDisconnect(self, callback: Callable[[], None]):
         """ Set the function to execute when socket is dicsonnected. """
 
         self._socket.onDisconnect(callback)

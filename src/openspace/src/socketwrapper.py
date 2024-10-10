@@ -39,10 +39,13 @@ class SocketWrapper:
                 else:
                     print("Error receiving data from OpenSpace. Connection closed.")
                     break
-            except OSError as e:
+            except ConnectionAbortedError as e:
                 print(f"Connection exited with: {e}")
                 break
-
+            except OSError as e:
+                print(f"Connection exited with: {e}")
+                print_exc()
+                break
         self.disconnect()
 
     def connect(self):
