@@ -243,7 +243,8 @@ class Api:
 
         return Topic(topic.iterator(), topic.talk, cancel)
 
-    def subscribeToLogMessages(self, settings):
+
+    def subscribeToLogMessages(self, settings, callback: Callable[[any], None]):
         """ Subscribe to error messages. \n
         :param `settings` - The settings for the error subscription. Possible settings are \n
         | `timeStamping`: [True, False] - Whether the error messages should be timestamped.
@@ -252,9 +253,12 @@ class Api:
         | `logLevelStamping`: [True, False] - Whether the error messages should be log level stamped.
         | `logLevel`: [All, Trace, Debug, Info, Warning, Error, Fatal, None] - The log level to subscribe to.
 
-        :return `Topic` - A topic object to represent the subscription topic.
-        when cancelled, this object will unsubscribe to the error messages. """
+        :param `callback` - The callback function to call when new messages are recieved
+        from OpenSpace. The function takes one parameter `message`
 
+        :return `cancel` - A coroutine function, when called the topic unsubscribes
+        from the log messages.
+        """
         if not isinstance(settings, dict):
             raise ValueError("Settings must be a dictionary")
 
@@ -263,13 +267,34 @@ class Api:
             'settings': settings
         })
 
-        def cancel():
+        cancelTopic = asyncio.Event()
+
+        async def cancel():
+            cancelTopic.set()
+            task.cancel() # Cancel the loop task
+
+            try:
+                await asyncio.gather(task) # Await the cancellation
+            except asyncio.CancelledError:
+                # Task was cancelled, proceed to cleanup
+                pass
+
             topic.talk({
                 'event': 'stop_subscription'
             })
             topic.cancel()
 
-        return Topic(topic.iterator(), topic.talk, cancel)
+        async def subscribeLoop():
+            async for future in topic.iterator():
+                message = await future
+
+                if cancelTopic.is_set():
+                    return
+
+                callback(message)
+
+        task = asyncio.create_task(subscribeLoop())
+        return cancel
 
     async def executeLuaScript(self, script, getReturnValue = True, shouldBeSynchronized = True):
         """ Execute a lua script. \n
