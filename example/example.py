@@ -11,10 +11,7 @@ disconnect = asyncio.Event()
 
 #--------------------------------TEST FUNCTIONS--------------------------------
 # Define a callback function to handle the received payload
-def event_callback(future):
-    # The argument passed to this callback is the future object we are awaiting.
-    # To retrieve the result we use `result()` method.
-    result = future.result()
+def event_callback(result):
     print("event_callback:", result)
 
 async def scaleEarth(value):
@@ -64,10 +61,11 @@ async def subscribeToEventWithCallback(events, callback):
     j = 0
     async for future in topic.iterator():
         print(f"SubscribeToEventWithCallback: Subscription callback waiting for {events} to fire...")
-        future.add_done_callback(callback)
-        await future
+        data = await future
+        callback(data)
         if j >= 1:
             topic.cancel()
+            print("Cancelled SubscribeToEventWithCallback")
         j += 1
 
 async def getTime(openspace):
