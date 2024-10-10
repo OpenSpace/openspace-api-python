@@ -1,7 +1,9 @@
 import asyncio
 import json
+from traceback import print_exc
 from .topic import Topic
 from .socketwrapper import SocketWrapper
+from typing import Callable
 
 class DotDict(dict):
     """ A dictionary subclass supporting dot.notation.
@@ -51,16 +53,18 @@ class Api:
         if 'topic' in messageObject:
             cb = self._callbacks.get(messageObject['topic'])
             if cb:
-                cb(messageObject['payload'])
-
-    def onConnect(self, callback):
+                if 'payload' in messageObject:
+                    cb(messageObject['payload'])
+                else:
+                    print(f"Error handling message: {messageObject}")
+    def onConnect(self, callback: Callable[[], None]):
         """ Set the function to execute when connection is established. \n
         :param `callback` - Async function to execute. """
 
         self._socket.onConnect(callback)
 
 
-    def onDisconnect(self, callback):
+    def onDisconnect(self, callback: Callable[[], None]):
         """ Set the function to execute when socket is dicsonnected. """
 
         self._socket.onDisconnect(callback)
@@ -108,15 +112,18 @@ class Api:
             # TODO: if we are just iterating once we never return to the while
             # loop to check if cancel_event is set. As such we wont remove the callback
             # function.
+            queue = asyncio.Queue()
+            self._callbacks[topic] = lambda payload: queue.put_nowait(payload)
             while not cancel_event.is_set():
-                # Creates a future obj that we can add callbacks to
-                future = asyncio.Future()
-                self._callbacks[topic] = lambda payload: future.set_result(payload)
-                # Return the future obj
-                yield future
-                # Next time anext(iterator) is called we continute from this point onwards
-                # waiting for the future to be complete
-                await future
+                try:
+                    # Yield the coroutine for the caller to await, this should allow us
+                    # to await several callbacks without them blocking eachother.
+                    yield queue.get()
+                except Exception as e:
+                    print("ERROR: in topic:", topic, e)
+                    print_exc()
+                    break
+
             # Topic has been canceled, remove callback
             self._callbacks.pop(topic, None)
 
@@ -236,7 +243,8 @@ class Api:
 
         return Topic(topic.iterator(), topic.talk, cancel)
 
-    def subscribeToLogMessages(self, settings):
+
+    def subscribeToLogMessages(self, settings, callback: Callable[[any], None]):
         """ Subscribe to error messages. \n
         :param `settings` - The settings for the error subscription. Possible settings are \n
         | `timeStamping`: [True, False] - Whether the error messages should be timestamped.
@@ -245,9 +253,12 @@ class Api:
         | `logLevelStamping`: [True, False] - Whether the error messages should be log level stamped.
         | `logLevel`: [All, Trace, Debug, Info, Warning, Error, Fatal, None] - The log level to subscribe to.
 
-        :return `Topic` - A topic object to represent the subscription topic.
-        when cancelled, this object will unsubscribe to the error messages. """
+        :param `callback` - The callback function to call when new messages are recieved
+        from OpenSpace. The function takes one parameter `message`
 
+        :return `cancel` - A coroutine function, when called the topic unsubscribes
+        from the log messages.
+        """
         if not isinstance(settings, dict):
             raise ValueError("Settings must be a dictionary")
 
@@ -256,13 +267,34 @@ class Api:
             'settings': settings
         })
 
-        def cancel():
+        cancelTopic = asyncio.Event()
+
+        async def cancel():
+            cancelTopic.set()
+            task.cancel() # Cancel the loop task
+
+            try:
+                await asyncio.gather(task) # Await the cancellation
+            except asyncio.CancelledError:
+                # Task was cancelled, proceed to cleanup
+                pass
+
             topic.talk({
                 'event': 'stop_subscription'
             })
             topic.cancel()
 
-        return Topic(topic.iterator(), topic.talk, cancel)
+        async def subscribeLoop():
+            async for future in topic.iterator():
+                message = await future
+
+                if cancelTopic.is_set():
+                    return
+
+                callback(message)
+
+        task = asyncio.create_task(subscribeLoop())
+        return cancel
 
     async def executeLuaScript(self, script, getReturnValue = True, shouldBeSynchronized = True):
         """ Execute a lua script. \n

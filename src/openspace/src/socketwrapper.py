@@ -1,6 +1,7 @@
+import asyncio
 import socket
 from threading import Thread
-import asyncio
+from traceback import print_exc
 
 class SocketWrapper:
     def __init__(self, address: str, port: int):
@@ -32,18 +33,19 @@ class SocketWrapper:
                         message, self._inBuffer = self._inBuffer.split('\n', 1)
                         try:
                             self._onMessage(message)
-                        except asyncio.InvalidStateError:
-                            print("Did not close topic after use. Either use "
-                                  "`async for foo in topic.iterator()` to continue "
-                                  "recieving callbacks or call topic.cancel() to close "
-                                  "the topic")
+                        except Exception as e:
+                            print(f"Error receiving data: {type(e)}: {e}")
+                            print_exc()
                 else:
                     print("Error receiving data from OpenSpace. Connection closed.")
                     break
-            except OSError as e:
+            except ConnectionAbortedError as e:
                 print(f"Connection exited with: {e}")
                 break
-
+            except OSError as e:
+                print(f"Connection exited with: {e}")
+                print_exc()
+                break
         self.disconnect()
 
     def connect(self):
