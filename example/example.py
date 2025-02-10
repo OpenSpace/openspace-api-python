@@ -19,7 +19,7 @@ async def scaleEarth(value):
 
     property = "Scene.Earth.Scale.Scale"
     data = await os.getProperty(property)
-    data = os.toDotDict(data)
+    data = os.toNamedTuple(data)
 
     print(f"Current scale value: {data.Value}")
     os.setProperty(property, value)
@@ -33,7 +33,7 @@ async def subscribeToEarthScaleUpdates():
     while i < 3:
         print("Waiting for Earth scale update...")
         result = await os.nextValue(subscription)
-        dic = os.toDotDict(result)
+        dic = os.toNamedTuple(result)
         print(f"{dic.Description.Identifier} changed to {dic.Value}")
         i += 1
     subscription.cancel()
@@ -41,7 +41,7 @@ async def subscribeToEarthScaleUpdates():
     ## Or using async for loop
     # async for future in subscription.iterator():
     #     result = await future
-    #     dic = api.toDotDict(result)
+    #     dic = api.toNamedTuple(result)
     #     print(f"{dic.Description.Identifier} changed to {dic.Value}")
     #     if i > 3:
     #         subscription.cancel()
