@@ -5,6 +5,11 @@ from traceback import print_exc
 
 class SocketWrapper:
     def __init__(self, address: str, port: int):
+
+        # Ipv6 addresses are resolved to '::1' in Windows which causes issues with
+        # `asyncio.sock_connect`, changing it to an Ipv4 address fixes the issue
+        if(address.lower() == 'localhost'):
+            address = '127.0.0.1'
         self._address = address
         self._port = port
         self._client = None
