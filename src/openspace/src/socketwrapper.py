@@ -53,12 +53,13 @@ class SocketWrapper:
                 break
         self.disconnect()
 
-    def connect(self):
+    async def connect(self):
         self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._client.setblocking(False)
+        self._loop = asyncio.get_event_loop()
         try:
-            self._client.connect((self._address, self._port))
+            await self._loop.sock_connect(self._client, (self._address, self._port))
             self._disconnecting = False
-            self._loop = asyncio.get_event_loop()
             asyncio.create_task(self._handle_receive(), name="Handle receive")
             asyncio.create_task(self._onConnect(), name="On connect")
         except ConnectionRefusedError as e:

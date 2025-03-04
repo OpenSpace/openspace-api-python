@@ -69,10 +69,10 @@ class Api:
 
         self._socket.onDisconnect(callback)
 
-    def connect(self):
+    async def connect(self):
         """ Connect to OpenSpace. """
 
-        self._socket.connect()
+        await self._socket.connect()
 
     def disconnect(self):
         """ Disconnect from OpenSpace. """
