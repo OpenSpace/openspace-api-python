@@ -3,32 +3,8 @@ import json
 from traceback import print_exc
 from .topic import Topic
 from .socketwrapper import SocketWrapper
-from typing import Callable
-
-class DotDict(dict):
-    """ A dictionary subclass supporting dot.notation.
-
-    Example usage:
-        `foo = DotDict({'bar': 'baz'})`\n
-        `print(foo.bar)` output 'baz'
-
-    Set attributes:
-        `foo.bar = 'foo'`
-
-    Delete attributes:
-        `del foo.bar`
-
-    Convert a `Dict` to a `DotDict` using `DotDict(dict)`. However, it does not convert
-    nested dictionaries. Instead use `OpenSpaceApi.toDotDict()`
-        `foo = {"bar": "baz"}`\n
-        `foo = DotDict(foo)` """
-
-    __getattr__ = dict.__getitem__
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
-
-    def __dir__(self):
-        return dir(dict) + list(self.keys())
+from typing import Callable, NamedTuple
+from collections import namedtuple
 
 class Api:
     """ Construct an instance of the OpenSpace API. \n
@@ -346,7 +322,7 @@ class Api:
         else:
             topic.cancel()
 
-    async def library(self, multiReturn: bool) -> DotDict:
+    async def library(self, multiReturn: bool) -> NamedTuple:
         """ Get an object representing the OpenSpace lua libarary. \n
         :param multiReturn - whether the library should return the raw lua tables.
         If this value is true, the 1-indexed lua table will be returned as a dict
@@ -395,16 +371,20 @@ class Api:
                 else:
                     subPyLibrary[func['name']] = generateAsyncSingleRetFunction(fullFunctionName)
 
-        return self.toDotDict(pyLibrary)
+        return self.toNamedTuple(pyLibrary, libraryName)
 
-    def toDotDict(self, dictionary: dict) -> DotDict:
-        """ Recursively converts a `dictionary` to a `DotDict`. """
+    def toNamedTuple(self, content: dict, name: str = "namedtuple") -> NamedTuple:
+        """ Recursively converts a `dictionary` to a `namedtuple`. """
 
-        for k, v in dictionary.items():
+        T = namedtuple(name, content.keys())
+        values = []
+        for k, v in content.items():
             if isinstance(v, dict):
-                dictionary[k] = self.toDotDict(v)
+                values.append(self.toNamedTuple(v, k))
+            else:
+                values.append(v)
 
-        return DotDict(dictionary)
+        return T(*values)
 
     async def singleReturnLibrary(self):
         """ Get an object representing the OpenSpace lua library. \n
