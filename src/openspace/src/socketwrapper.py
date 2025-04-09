@@ -56,7 +56,7 @@ class SocketWrapper:
     async def connect(self):
         self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._client.setblocking(False)
-        self._loop = asyncio.get_event_loop()
+        self._loop = asyncio.get_running_loop()
         try:
             await self._loop.sock_connect(self._client, (self._address, self._port))
             self._disconnecting = False
