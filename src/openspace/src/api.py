@@ -6,6 +6,21 @@ from .socketwrapper import SocketWrapper
 from typing import Callable, NamedTuple
 from collections import namedtuple
 
+
+def toNamedTuple(content: dict, name: str = "namedtuple") -> NamedTuple:
+    """ Recursively converts a `dictionary` to a `namedtuple`. """
+
+    T = namedtuple(name, content.keys())
+    values = []
+    for k, v in content.items():
+        if isinstance(v, dict):
+            values.append(toNamedTuple(v, k))
+        else:
+            values.append(v)
+
+    return T(*values)
+
+
 class Api:
     """ Construct an instance of the OpenSpace API. \n
     :param socket - An instance of SocketWrapper.
@@ -356,20 +371,7 @@ class Api:
 
                 subPyLibrary[func['name']] = generateAsyncSingleRetFunction(fullFunctionName)
 
-        return self.toNamedTuple(pyLibrary, libraryName)
-
-    def toNamedTuple(self, content: dict, name: str = "namedtuple") -> NamedTuple:
-        """ Recursively converts a `dictionary` to a `namedtuple`. """
-
-        T = namedtuple(name, content.keys())
-        values = []
-        for k, v in content.items():
-            if isinstance(v, dict):
-                values.append(self.toNamedTuple(v, k))
-            else:
-                values.append(v)
-
-        return T(*values)
+        return toNamedTuple(pyLibrary, libraryName)
 
     async def singleReturnLibrary(self):
         """ Get an object representing the OpenSpace lua library. \n
