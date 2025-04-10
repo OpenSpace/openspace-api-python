@@ -3,6 +3,7 @@ import json
 from traceback import print_exc
 from .topic import Topic
 from .socketwrapper import SocketWrapper
+from functools import partial
 from typing import Callable, NamedTuple
 from collections import namedtuple
 
@@ -337,20 +338,19 @@ class Api:
         else:
             topic.cancel()
 
-    async def library(self) -> dict:
+    async def library(self, wrapper: None|Callable = None) -> dict:
         """ Get an object representing the OpenSpace lua libarary. \n
+        :param wrapper: if set, wraps all API calls (may be used to make them synchronous)
         :return - The lua library, mapped to async python functions. """
 
-        def generateAsyncSingleRetFunction(functionName):
-            async def fun(*args):
-                try:
-                    luaTable = await self.executeLuaFunction(functionName, args)
-                    if luaTable:
-                        return luaTable['1']
-                    return None
-                except Exception as e:
-                    print("Lua exception error: \n", e)
-            return fun
+        async def async_lua_call(functionName, *args):
+            try:
+                luaTable = await self.executeLuaFunction(functionName, args)
+                if luaTable:
+                    return luaTable['1']
+                return None
+            except Exception as e:
+                print("Lua exception error: \n", e)
 
         docs = await self.getDocumentation('lua')
 
@@ -369,13 +369,18 @@ class Api:
                 _lib = '' if subPyLibrary == pyLibrary else libraryName + '.'
                 fullFunctionName = 'openspace.' + _lib + func['name']
 
-                subPyLibrary[func['name']] = generateAsyncSingleRetFunction(fullFunctionName)
+                lua_call = partial(async_lua_call, fullFunctionName)
+                if wrapper is not None:
+                    lua_call = partial(wrapper, lua_call)
+                subPyLibrary[func['name']] = lua_call
 
         return toNamedTuple(pyLibrary, libraryName)
 
-    async def singleReturnLibrary(self):
+    async def singleReturnLibrary(self, wrapper=None):
         """ Get an object representing the OpenSpace lua library. \n
+        (deprecated. Use library() instead)
+        :param wrapper: if set, wraps all API calls (may be used to make them synchronous)
         :return - The lua library, mapped to async python functions. This method only
         returns the first return value. """
 
-        return await self.library(False)
+        return await self.library(wrapper)
