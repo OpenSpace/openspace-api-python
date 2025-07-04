@@ -7,19 +7,20 @@ PORT = 4681
 os = openspace.Api(ADDRESS, PORT)
 
 async def setPause():
-    os.connect()
-    openspace = await os.singleReturnLibrary()
+    await os.connect()
+    openspace = await os.library()
     await openspace.time.setPause(True)
 
 async def goToGeo():
-    os.connect()
+    await os.connect()
 
     lat = 40.7208636
     lon = -74.0094477
     altitude = 220
 
-    openspace = await os.singleReturnLibrary()
-    await openspace.globebrowsing.goToGeo(lat, lon, altitude)
+    openspace = await os.library()
+    # print(openspace.navigation)
+    await openspace.navigation.jumpToGeo("", lat, lon, altitude)
 
 async def setYourTime():
     import time
@@ -32,8 +33,8 @@ async def setYourTime():
     interval = 300 # in seconds
     number_of_photos = 20
 
-    os.connect()
-    openspace = await os.singleReturnLibrary()
+    await os.connect()
+    openspace = await os.library()
 
     for i in range(0, number_of_photos):
         await openspace.time.setTime(timestamp)
@@ -44,8 +45,8 @@ async def setYourTime():
 
 async def addLayersToGlobe():
     # ... Prepare the layers
-    os.connect()
-    openspace = await os.singleReturnLibrary()
+    await os.connect()
+    openspace = await os.library()
     output_path = "C:/os/OpenSpaceData/Moon2/"
     globe_for_layers = "Moon"
     # await openspace.globebrowsing.addBlendingLayersFromDirectory(output_path, globe_for_layers)

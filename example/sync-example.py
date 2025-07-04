@@ -20,7 +20,7 @@ def sync_wrapper(f, *args, **kwargs):
 # warning: all async calls must be performed on the same loop
 
 loop.run_until_complete(api.connect())
-sync_os = loop.run_until_complete(api.singleReturnLibrary(sync_wrapper))
+sync_os = loop.run_until_complete(api.library(sync_wrapper))
 
 # Calls to methods of `sync_os` will block until the call is made and a result is returned:
 sync_os.printInfo("foo")
