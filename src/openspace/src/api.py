@@ -74,8 +74,8 @@ class Api:
     def startTopic(self, type: str, payload) -> Topic:
         """ Initialize a new channel of communication. \n
 
-        :param `type` - A string specifying the type of topic to construct. \n
-        See OpenSpace's server module for available topic types.
+        :param `type` - A string specifying the type of topic to construct.
+        See OpenSpace's server module for available topic types. \n
         :param `payload` - An object representing the topic \n
         :return - A Topic object. """
 
@@ -338,7 +338,7 @@ class Api:
         else:
             topic.cancel()
 
-    async def library(self, wrapper: None|Callable = None) -> dict:
+    async def library(self, wrapper: None | Callable = None) -> NamedTuple:
         """ Get an object representing the OpenSpace lua libarary. \n
         :param wrapper: if set, wraps all API calls (may be used to make them synchronous)
         :return - The lua library, mapped to async python functions. """
@@ -375,12 +375,3 @@ class Api:
                 subPyLibrary[func['name']] = lua_call
 
         return toNamedTuple(pyLibrary, libraryName)
-
-    async def singleReturnLibrary(self, wrapper=None):
-        """ Get an object representing the OpenSpace lua library. \n
-        (deprecated. Use library() instead)
-        :param wrapper: if set, wraps all API calls (may be used to make them synchronous)
-        :return - The lua library, mapped to async python functions. This method only
-        returns the first return value. """
-
-        return await self.library(wrapper)
