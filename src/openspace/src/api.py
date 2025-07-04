@@ -3,8 +3,24 @@ import json
 from traceback import print_exc
 from .topic import Topic
 from .socketwrapper import SocketWrapper
+from functools import partial
 from typing import Callable, NamedTuple
 from collections import namedtuple
+
+
+def toNamedTuple(content: dict, name: str = "namedtuple") -> NamedTuple:
+    """ Recursively converts a `dictionary` to a `namedtuple`. """
+
+    T = namedtuple(name, content.keys())
+    values = []
+    for k, v in content.items():
+        if isinstance(v, dict):
+            values.append(toNamedTuple(v, k))
+        else:
+            values.append(v)
+
+    return T(*values)
+
 
 class Api:
     """ Construct an instance of the OpenSpace API. \n
@@ -322,32 +338,19 @@ class Api:
         else:
             topic.cancel()
 
-    async def library(self, multiReturn: bool) -> NamedTuple:
+    async def library(self, wrapper: None|Callable = None) -> dict:
         """ Get an object representing the OpenSpace lua libarary. \n
-        :param multiReturn - whether the library should return the raw lua tables.
-        If this value is true, the 1-indexed lua table will be returned as a dict
-        If the value is false, then only the first return value will be returned. \n
+        :param wrapper: if set, wraps all API calls (may be used to make them synchronous)
         :return - The lua library, mapped to async python functions. """
 
-        def generateAsyncMultiRetFunction(functionName):
-            async def fun(*args):
-                try:
-                    return await self.executeLuaFunction(functionName, args)
-                except Exception as e:
-                    print("Lua exception error: \n", e)
-
-            return fun
-
-        def generateAsyncSingleRetFunction(functionName):
-            async def fun(*args):
-                try:
-                    luaTable = await self.executeLuaFunction(functionName, args)
-                    if luaTable:
-                        return luaTable['1']
-                    return None
-                except Exception as e:
-                    print("Lua exception error: \n", e)
-            return fun
+        async def async_lua_call(functionName, *args):
+            try:
+                luaTable = await self.executeLuaFunction(functionName, args)
+                if luaTable:
+                    return luaTable['1']
+                return None
+            except Exception as e:
+                print("Lua exception error: \n", e)
 
         docs = await self.getDocumentation('lua')
 
@@ -366,36 +369,18 @@ class Api:
                 _lib = '' if subPyLibrary == pyLibrary else libraryName + '.'
                 fullFunctionName = 'openspace.' + _lib + func['name']
 
-                if multiReturn:
-                    subPyLibrary[func['name']] = generateAsyncMultiRetFunction(fullFunctionName)
-                else:
-                    subPyLibrary[func['name']] = generateAsyncSingleRetFunction(fullFunctionName)
+                lua_call = partial(async_lua_call, fullFunctionName)
+                if wrapper is not None:
+                    lua_call = partial(wrapper, lua_call)
+                subPyLibrary[func['name']] = lua_call
 
-        return self.toNamedTuple(pyLibrary, libraryName)
+        return toNamedTuple(pyLibrary, libraryName)
 
-    def toNamedTuple(self, content: dict, name: str = "namedtuple") -> NamedTuple:
-        """ Recursively converts a `dictionary` to a `namedtuple`. """
-
-        T = namedtuple(name, content.keys())
-        values = []
-        for k, v in content.items():
-            if isinstance(v, dict):
-                values.append(self.toNamedTuple(v, k))
-            else:
-                values.append(v)
-
-        return T(*values)
-
-    async def singleReturnLibrary(self):
+    async def singleReturnLibrary(self, wrapper=None):
         """ Get an object representing the OpenSpace lua library. \n
+        (deprecated. Use library() instead)
+        :param wrapper: if set, wraps all API calls (may be used to make them synchronous)
         :return - The lua library, mapped to async python functions. This method only
         returns the first return value. """
 
-        return await self.library(False)
-
-    async def multiReturnLibrary(self):
-        """ Get an object representing the OpenSpace lua library. \n
-        :return - The lua library, mapped to async python functions. The values returned
-        by the async functions will be the entire lua tables, with 1-indexed values. """
-
-        return await self.library(True)
+        return await self.library(wrapper)
