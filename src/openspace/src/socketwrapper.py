@@ -45,7 +45,9 @@ class SocketWrapper:
                     print("Error receiving data from OpenSpace. Connection closed.")
                     break
             except ConnectionAbortedError as e:
-                print(f"Connection exited with: {e}")
+                if not self._disconnecting:
+                    # We don't need to print the message if we are already deliberately disconnecting
+                    print(f"Connection exited with: {e}")
                 break
             except OSError as e:
                 print(f"Connection exited with: {e}")
