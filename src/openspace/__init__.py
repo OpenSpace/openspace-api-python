@@ -1,3 +1,3 @@
-from .src.api import Api
+from .src.api import Api, toNamedTuple
 
-__version__ = "0.1.2"
+__version__ = "0.9.0"

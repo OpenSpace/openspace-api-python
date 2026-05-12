@@ -15,9 +15,9 @@ api = openspace.Api(ADDRESS, PORT)
 # different.
 loop = asyncio.new_event_loop()
 def sync_wrapper(f, *args, **kwargs):
-    return loop.run_until_complete(f(*args, **kwargs))
+  return loop.run_until_complete(f(*args, **kwargs))
 
-# warning: all async calls must be performed on the same loop
+# Obs: All async calls must be performed on the same loop
 
 loop.run_until_complete(api.connect())
 sync_os = loop.run_until_complete(api.library(sync_wrapper))
@@ -27,3 +27,10 @@ sync_os.printInfo("foo")
 print(sync_os.propertyValue("Scene.Earth.Scale.Scale"))
 
 api.disconnect()
+
+# Allow pending tasks (e.g., the internal api receieve loop) to finish cancelling cleanly.
+pending = asyncio.all_tasks(loop)
+if pending:
+  loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+
+loop.close()

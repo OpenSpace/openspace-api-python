@@ -1,377 +1,404 @@
 import asyncio
 import json
-from traceback import print_exc
 from .topic import Topic
 from .socketwrapper import SocketWrapper
-from functools import partial
-from typing import Callable, NamedTuple
 from collections import namedtuple
-
+from functools import partial
+from traceback import print_exc
+from typing import Any, AsyncGenerator, Callable, Coroutine, NamedTuple
 
 def toNamedTuple(content: dict, name: str = "namedtuple") -> NamedTuple:
-    """ Recursively converts a `dictionary` to a `namedtuple`. """
+  """Recursively converts a `dictionary` to a `namedtuple`."""
 
-    T = namedtuple(name, content.keys())
-    values = []
-    for k, v in content.items():
-        if isinstance(v, dict):
-            values.append(toNamedTuple(v, k))
-        else:
-            values.append(v)
+  T = namedtuple(name, content.keys())
+  values = []
+  for k, v in content.items():
+    if isinstance(v, dict):
+      values.append(toNamedTuple(v, k))
+    else:
+      values.append(v)
 
-    return T(*values)
+  return T(*values)
 
+ApiVersion = {
+  "type": "apiHandshake",
+  "apiVersion": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0
+  }
+}
 
 class Api:
-    """ Construct an instance of the OpenSpace API. \n
-    :param socket - An instance of SocketWrapper.
-    The socket should not be connected prior to calling this constructor. """
-
-    def __init__(self, ADDRESS, PORT):
-        self._callbacks = {}
-        self._nextTopicId = 0
-
-        socket = SocketWrapper(ADDRESS, PORT)
-        async def __onConnect():
-            pass
-        socket.onConnect(__onConnect)
-        socket.onDisconnect(lambda: None)
-        socket.onMessage(self._handle_message)
-
-        self._socket = socket
-
-    def _handle_message(self, message):
-        messageObject = json.loads(message)
-        if 'topic' in messageObject:
-            cb = self._callbacks.get(messageObject['topic'])
-            if cb:
-                if 'payload' in messageObject:
-                    cb(messageObject['payload'])
-                else:
-                    print(f"Error handling message: {messageObject}")
-    def onConnect(self, callback: Callable[[], None]):
-        """ Set the function to execute when connection is established. \n
-        :param `callback` - Async function to execute. """
-
-        self._socket.onConnect(callback)
-
-
-    def onDisconnect(self, callback: Callable[[], None]):
-        """ Set the function to execute when socket is dicsonnected. """
-
-        self._socket.onDisconnect(callback)
-
-    async def connect(self):
-        """ Connect to OpenSpace. """
-
-        await self._socket.connect()
-
-    def disconnect(self):
-        """ Disconnect from OpenSpace. """
-
-        self._socket.disconnect()
-
-    def startTopic(self, type: str, payload) -> Topic:
-        """ Initialize a new channel of communication. \n
-
-        :param `type` - A string specifying the type of topic to construct.
-        See OpenSpace's server module for available topic types. \n
-        :param `payload` - An object representing the topic \n
-        :return - A Topic object. """
-
-        if not isinstance(type, str):
-            raise ValueError("Topic type must be a string")
-
-        topic = self._nextTopicId
-        self._nextTopicId += 1
-
-        messageObject = {
-            'topic': topic,
-            'type': type,
-            'payload': payload
-        }
-
-        self._socket.send(json.dumps(messageObject))
-
-        cancel_event = asyncio.Event()
-
-        def cancel ():
-            # Temp fix to remove callback, see TODO in iterator()
-            cancel_event.set()
-            self._callbacks.pop(topic, None)
-
-        async def iterator():
-            # TODO: if we are just iterating once we never return to the while
-            # loop to check if cancel_event is set. As such we wont remove the callback
-            # function.
-            queue = asyncio.Queue()
-            self._callbacks[topic] = lambda payload: queue.put_nowait(payload)
-            while not cancel_event.is_set():
-                try:
-                    # Yield the coroutine for the caller to await, this should allow us
-                    # to await several callbacks without them blocking eachother.
-                    yield queue.get()
-                except Exception as e:
-                    print("ERROR: in topic:", topic, e)
-                    print_exc()
-                    break
-
-            # Topic has been canceled, remove callback
-            self._callbacks.pop(topic, None)
-
-        it = iterator()
-
-        def talk(payload):
-            messageObject = {
-                'topic': topic,
-                'payload': payload
-            }
-            self._socket.send(json.dumps(messageObject))
-
-
-        return Topic(it, talk, cancel)
-
-    async def nextValue(self, topic: Topic):
-        """ Utility function to iterate a topic and retrieve the next value. """
-
-        future = await anext(topic.iterator())
-        result = await future
-        return result
-
-    async def authenticate(self, secret):
-        """ Authenticate this client. \n
-        This must be done if the client is not whitelisted in the openspace.cfg. \n
-        :param `secret` - The secret used to authenticate with OpenSpace. """
-
-        topic = self.startTopic('authorize', { "key": secret })
-        response = await self.nextValue(topic)
-        topic.cancel()
-        return response
-
-    def setProperty(self, property, value):
-        """ Set a property \n
-        :param `property` - The URI of the property to set. \n
-        :param `value` - The value to set the property to. """
-
-        if not isinstance(property, str):
-            raise ValueError("Property must be a string")
-
-        topic = self.startTopic('set', { "property": property, "value": value })
-        topic.cancel()
-
-    async def getProperty(self, property):
-        """ Get a property. \n
-        :param `property` the URI of the property to get.\n
-        :return `value` - The value of the property. """
-
-        if not isinstance(property, str):
-            raise ValueError("Property must be a string")
-
-        topic = self.startTopic('get', { "property": property })
-
-        response = await self.nextValue(topic)
-        topic.cancel()
-
-        return response
-
-    async def getDocumentation(self, type: str):
-        """ :param type - The type of documentation to get. For available types, check
-        documentationtopic.cpp in OpenSpace's server module. """
-
-        topic = self.startTopic('documentation',  { "type": type } )
-
-        response = await self.nextValue(topic)
-        topic.cancel()
-
-        return response
-
-    def subscribeToProperty(self, property):
-        """ Subscribe to a property.\n
-        :param `property`- The URI of the property to subscribe to.\n
-        :return `Topic` - A topic object to represent the subscription topic.
-        when cancelled, this object will unsubscribe to the property. """
-        if not isinstance(property, str):
-            raise ValueError("Property must be a string")
-
-        topic = self.startTopic('subscribe', {
-            'event': 'start_subscription',
-            'property': property
-        })
-
-        def cancel():
-            topic.talk({
-                'event': 'stop_subscription'
-            })
-            topic.cancel()
-
-        return Topic(topic.iterator(), topic.talk, cancel)
-
-    def subscribeToEvent(self, events):
-        """ Subscribe to an event. \n
-        :param `event` - The name of the event to subscribe to. For available events,
-        check event.h in OpenSpace core module. \n
-        :return `Topic` - A topic object to represent the subscription topic.
-        when cancelled, this object will unsubscribe to the event. """
-
-        if not isinstance(events, str) and not isinstance(events, list):
-            raise ValueError("Event must be a string or list of strings")
-
-        if isinstance(events, list):
-            for event in events:
-                if not isinstance(event, str):
-                    raise ValueError(f"Event {event} in list is not a string")
-
-        topic = self.startTopic('event', {
-            'event': events,
-            'status': 'start_subscription'
-        })
-
-        def cancel():
-            topic.talk({
-                "event": events,
-                'status': 'stop_subscription'
-            })
-            topic.cancel()
-
-        return Topic(topic.iterator(), topic.talk, cancel)
-
-
-    def subscribeToLogMessages(self, settings, callback: Callable[[any], None]):
-        """ Subscribe to error messages. \n
-        :param `settings` - The settings for the error subscription. Possible settings are \n
-        | `timeStamping`: [True, False] - Whether the error messages should be timestamped.
-        | `dateStamping`: [True, False] - Whether the error messages should be datestamped.
-        | `categoryStamping`: [True, False] - Whether the error messages should be category stamped.
-        | `logLevelStamping`: [True, False] - Whether the error messages should be log level stamped.
-        | `logLevel`: [All, Trace, Debug, Info, Warning, Error, Fatal, None] - The log level to subscribe to.
-
-        :param `callback` - The callback function to call when new messages are recieved
-        from OpenSpace. The function takes one parameter `message`
-
-        :return `cancel` - A coroutine function, when called the topic unsubscribes
-        from the log messages.
-        """
-        if not isinstance(settings, dict):
-            raise ValueError("Settings must be a dictionary")
-
-        topic = self.startTopic('errorLog', {
-            'event': 'start_subscription',
-            'settings': settings
-        })
-
-        cancelTopic = asyncio.Event()
-
-        async def cancel():
-            cancelTopic.set()
-            task.cancel() # Cancel the loop task
-
-            try:
-                await asyncio.gather(task) # Await the cancellation
-            except asyncio.CancelledError:
-                # Task was cancelled, proceed to cleanup
-                pass
-
-            topic.talk({
-                'event': 'stop_subscription'
-            })
-            topic.cancel()
-
-        async def subscribeLoop():
-            async for future in topic.iterator():
-                message = await future
-
-                if cancelTopic.is_set():
-                    return
-
-                callback(message)
-
-        task = asyncio.create_task(subscribeLoop())
-        return cancel
-
-    async def executeLuaScript(self, script, getReturnValue = True, shouldBeSynchronized = True):
-        """ Execute a lua script. \n
-        :param `script` - The lua script to execute. \n
-        :param `getReturnValue`- Specified whether the return value should be collected. \n
-        :param `shouldBeSynchronized  - Specified whether the script should be
-        synchronized on a cluster. \n
-        :return The return value of the script, if `getReturnValue` is true, otherwise
-        undefined. """
-
-        if not isinstance(script, str):
-            raise ValueError("Script must be a string")
-
-        topic = self.startTopic('luascript', {
-            'script': script,
-            'return': getReturnValue,
-            'shouldBeSynchronized': shouldBeSynchronized
-        })
-
-        if getReturnValue:
-            response = await self.nextValue(topic)
-            topic.cancel()
-            return response
+  """
+  Construct an instance of the OpenSpace API.
+
+  :param address: The hostname or IP address of the OpenSpace instance to connect to.
+  :param port: The port OpenSpace is listening on (4681 by default).
+  """
+
+  def __init__(self, address: str, port: int):
+    self._callbacks: dict[int, Callable[[Any], None]] = {}
+    self._nextTopicId: int = 0
+    self._userOnConnect: Callable[[], Coroutine[Any, Any, None]] | None = None
+
+    socket = SocketWrapper(address, port)
+    socket.onConnect(self._onConnect)
+    socket.onDisconnect(lambda: None)
+    socket.onMessage(self._handle_message)
+
+    self._socket = socket
+
+  def _handle_message(self, message: str) -> None:
+    messageObject = json.loads(message)
+    if 'topic' in messageObject:
+      cb = self._callbacks.get(messageObject['topic'])
+      if cb:
+        if 'payload' in messageObject:
+          cb(messageObject['payload'])
         else:
-            topic.cancel()
+          print(f"Error handling message: {messageObject}")
 
-    async def executeLuaFunction(self, function: str, args, getReturnValue = True):
-        """ Executa a lua function from the OpenSpace library. \n
-        :param `function`- The lua function to execute (for example
-        `openspace.addSceneGraphNode`) \n
-        :param `getReturnValue`- Specified whether the return value should be collected. \n
-        :return The return value of the script, if `getReturnValue` is true, otherwise
-        undefined. """
+  async def _onConnect(self):
+    # Send API handshake before any user-registered onConnect
+    self._socket.send(json.dumps(ApiVersion))
+    # Call user defined onConnect if it exists
+    if self._userOnConnect is not None:
+      await self._userOnConnect()
 
-        if not isinstance(function, str):
-            raise ValueError("Function type must be a string")
+  def onConnect(self, callback: Callable[[], Coroutine[Any, Any, None]]) -> None:
+    """
+    Set the async function to call when a connection is established.
 
-        payload = {
-            'function': function,
-            'arguments': args,
-            'return': True
-        }
-        topic = self.startTopic('luascript', payload)
+    :param `callback` - Async function to execute.
+    """
+    self._userOnConnect = callback
 
-        if getReturnValue:
-            response = await self.nextValue(topic)
-            topic.cancel()
-            return response
-        else:
-            topic.cancel()
+  def onDisconnect(self, callback: Callable[[], None]):
+    """Set the function to execute when socket is dicsonnected."""
+    self._socket.onDisconnect(callback)
 
-    async def library(self, wrapper: None | Callable = None) -> NamedTuple:
-        """ Get an object representing the OpenSpace lua libarary. \n
-        :param wrapper: if set, wraps all API calls (may be used to make them synchronous)
-        :return - The lua library, mapped to async python functions. """
+  async def connect(self):
+    """Connect to OpenSpace."""
+    await self._socket.connect()
 
-        async def async_lua_call(functionName, *args):
-            try:
-                luaTable = await self.executeLuaFunction(functionName, args)
-                if luaTable:
-                    return luaTable['1']
-                return None
-            except Exception as e:
-                print("Lua exception error: \n", e)
+  def disconnect(self):
+    """Disconnect from OpenSpace."""
+    self._socket.disconnect()
 
-        docs = await self.getDocumentation('lua')
+  def startTopic(self, type: str, payload: Any, cancelPayload: Any = None) -> Topic:
+    """
+    Initialize a new channel of communication.
 
-        pyLibrary = {}
+    :param `type` - A string specifying the type of topic to construct. See OpenSpace's
+    server.cpp for available topic types.\n
+    :param `payload` - An object representing the topic.\n
+    :param `cancelPayload` - Optional payload to send before closing the topic.\n
+    :return - A Topic object.
+    """
+    if not isinstance(type, str):
+      raise ValueError("Topic type must be a string")
 
-        for lib in docs:
-            subPyLibrary = {}
-            libraryName = lib['library']
-            if not libraryName: # library is empty string
-                subPyLibrary = pyLibrary
-            else:
-                pyLibrary[libraryName] = {}
-                subPyLibrary = pyLibrary[libraryName] # reference to the sublibrary
+    topicId = self._nextTopicId
+    self._nextTopicId += 1
 
-            for func in lib['functions']:
-                _lib = '' if subPyLibrary == pyLibrary else libraryName + '.'
-                fullFunctionName = 'openspace.' + _lib + func['name']
+    messageObject = {
+      'topic': topicId,
+      'type': type,
+      'payload': payload
+    }
 
-                lua_call = partial(async_lua_call, fullFunctionName)
-                if wrapper is not None:
-                    lua_call = partial(wrapper, lua_call)
-                subPyLibrary[func['name']] = lua_call
+    self._socket.send(json.dumps(messageObject))
 
-        return toNamedTuple(pyLibrary, libraryName)
+    queue: asyncio.Queue[Any] = asyncio.Queue()
+    self._callbacks[topicId] = lambda payload: queue.put_nowait(payload)
+
+    cancelEvent = asyncio.Event()
+
+    async def iterator() -> AsyncGenerator[Any, None]:
+      while not cancelEvent.is_set():
+        try:
+          # Poll the queue with a timeout to allow checking for cancellation
+          # without blocking indefinitely on queue.get()
+          value = await asyncio.wait_for(queue.get(), timeout=0.1)
+          yield value
+        except asyncio.TimeoutError:
+          continue
+        except Exception as e:
+          print(f"Error in topic {topicId} iterator: {e}")
+          print_exc()
+          break
+      # Topic has been canceled, remove callback
+      self._callbacks.pop(topicId, None)
+
+
+    def talk(payload: Any) -> None:
+      messageObject = {
+        'topic': topicId,
+        'payload': payload
+      }
+      self._socket.send(json.dumps(messageObject))
+
+    def cancel () -> None:
+      if cancelPayload is not None:
+        talk(cancelPayload)
+      cancelEvent.set()
+      self._callbacks.pop(topicId, None)
+
+    return Topic(iterator(), talk, cancel)
+
+  async def authenticate(self, secret) -> Any:
+    """
+    Authenticate this client. This must be done if the client is not whitelisted in the
+    openspace.cfg.
+
+    :param `secret` - The secret used to authenticate with OpenSpace.
+    """
+    topic = self.startTopic('authorize', { "password": secret })
+    try:
+      return await topic.next()
+    finally:
+      topic.cancel()
+
+  def setProperty(self, property: str, value: Any) -> None:
+    """
+    Set a property
+
+    :param `property` - The URI of the property to set.\n
+    :param `value` - The value to set the property to.
+    """
+    if not isinstance(property, str):
+      raise ValueError("Property must be a string")
+
+    topic = self.startTopic('set', { "property": property, "value": value })
+    topic.cancel()
+
+  async def getProperty(self, property: str) -> Any:
+    """
+    Get a property.
+
+    :param `property` the URI of the property to get.\n
+    :return `value` - The value of the property.
+    """
+    if not isinstance(property, str):
+      raise ValueError("Property must be a string")
+
+    topic = self.startTopic('get', { "property": property })
+    try:
+      return await topic.next()
+    finally:
+      topic.cancel()
+
+  async def getDocumentation(self, type: str) -> Any:
+    """
+    Get documentation from OpenSpace.
+
+    :param type - The type of documentation to get. For available types, check
+    documentationtopic.cpp in OpenSpace core.\n
+    :return An object representing the requested documentation
+    """
+    topic = self.startTopic('documentation',  { "type": type } )
+    try:
+      return await topic.next()
+    finally:
+      topic.cancel()
+
+  def subscribeToProperty(self, property: str) -> Topic:
+    """
+    Subscribe to a property.
+
+    :param `property`- The URI of the property to subscribe to.\n
+    :return `Topic` - A topic object to represent the subscription topic. When cancelled,
+    this object will unsubscribe to the property.
+    """
+    if not isinstance(property, str):
+      raise ValueError("Property must be a string")
+
+    return self.startTopic(
+      'subscribe',
+      { 'event': 'start_subscription', 'uri': property },
+      { "event": "stop_subscription" }
+    )
+
+  def subscribeToEvent(self, events: str | list[str]) -> Topic:
+    """
+    Subscribe to an event.
+
+    :param `event` - The name of the event to subscribe to. For available events, check
+    event.h in OpenSpace core module.\n
+    :return `Topic` - A topic object to represent the subscription topic.
+    when cancelled, this object will unsubscribe to the event.
+    """
+    if not isinstance(events, str) and not isinstance(events, list):
+      raise ValueError("Event must be a string or list of strings")
+
+    if isinstance(events, list):
+      for event in events:
+        if not isinstance(event, str):
+          raise ValueError(f"Event {event} in list is not a string")
+
+    return self.startTopic(
+      'event',
+      { 'eventType': events, 'event': 'start_subscription' },
+      { 'eventType': events, 'event': 'stop_subscription' }
+    )
+
+  def subscribeToLogMessages(
+    self,
+    settings: dict,
+    callback: Callable[[Any], None]
+  ) -> Callable[[], Coroutine[Any, Any, None]]:
+    """ Subscribe to error messages. \n
+    :param `settings` - The settings for the error subscription. Possible settings are\n
+    | `timeStamping`: [True, False] - Whether the error messages should be timestamped.
+    | `dateStamping`: [True, False] - Whether the error messages should be datestamped.
+    | `categoryStamping`: [True, False] - Whether the error messages should be category stamped.
+    | `logLevelStamping`: [True, False] - Whether the error messages should be log level stamped.
+    | `logLevel`: [All, Trace, Debug, Info, Warning, Error, Fatal, None] - The log level to subscribe to.\n
+    :param `callback` - The callback function to call when new messages are recieved from
+    OpenSpace. The function takes one parameter `message`\n
+    :return `cancel` - A coroutine function, when called the topic unsubscribes from the
+    log messages.
+    """
+    if not isinstance(settings, dict):
+      raise ValueError("Settings must be a dictionary")
+
+    topic = self.startTopic(
+      'errorLog',
+      { 'event': 'start_subscription', 'settings': settings },
+      { "event": "stop_subscription"}
+    )
+
+    async def loop() -> None:
+      async for message in topic:
+        callback(message)
+
+    task = asyncio.create_task(loop())
+
+    async def cancel() -> None:
+      topic.cancel()
+      task.cancel()
+
+      try:
+        await task # Cancel the loop
+      except asyncio.CancelledError:
+        # Task was cancelled, proceed to cleanup
+        pass
+
+    return cancel
+
+  async def executeLuaScript(
+    self,
+    script: str,
+    getReturnValue: bool = True,
+    shouldBeSynchronized: bool = True
+  ) -> Any:
+    """
+    Execute a Lua script.
+
+    :param `script` - The Lua script to execute.\n
+    :param `getReturnValue` - Specified whether the return value should be collected.\n
+    :param `shouldBeSynchronized - Specified whether the script should be synchronized on
+    a cluster.\n
+    :return The return value of the script, if `getReturnValue` is true, otherwise None.
+    """
+    if not isinstance(script, str):
+      raise ValueError("Script must be a string")
+
+    topic = self.startTopic('luascript', {
+      'script': script,
+      'return': getReturnValue,
+      'shouldBeSynchronized': shouldBeSynchronized
+    })
+
+    if not getReturnValue:
+      topic.cancel()
+      return None
+
+    try:
+      return await topic.next()
+    finally:
+      topic.cancel()
+
+  async def executeLuaFunction(
+    self,
+    function: str,
+    args: list[Any],
+    getReturnValue: bool = True
+  ) -> Any:
+    """
+    Executa a lua function from the OpenSpace library.
+
+    :param `function`- The Lua function to execute, for example
+    `openspace.addSceneGraphNode`.\n
+    :param `args`- The function arguments.\n
+    :param `getReturnValue`- Specified whether the return value should be collected.\n
+    :return The return value of the script, if `getReturnValue` is true, otherwise None.
+    """
+    if not isinstance(function, str):
+      raise ValueError("Function type must be a string")
+
+    topic = self.startTopic('luascript', {
+      'function': function,
+      'arguments': args,
+      'return': getReturnValue
+    })
+
+    if not getReturnValue:
+      topic.cancel()
+      return None
+    try:
+      return await topic.next()
+    finally:
+      topic.cancel()
+
+  async def library(self, wrapper: Callable | None = None) -> NamedTuple:
+    """
+    Get an object representing the OpenSpace lua libarary.
+
+    Returns a NamedTuple tree mirroring the OpenSpace Lua namesace, where each leaf is an
+    async function that executes the corresponding Lua function via the API.
+
+    :param wrapper - If provided, wraps each async API calls. Can be used to make calls
+    synchronous in interactive environments.\n
+    :return - The lua library, mapped to async python functions.
+    """
+    async def async_lua_call(functionName: str, *args: Any) -> Any:
+      try:
+        result = await self.executeLuaFunction(functionName, list(args))
+        if result:
+          return result['1']
+        return None
+      except Exception as e:
+        print(f"Lua exception: {e}")
+
+    documentation = await self.getDocumentation('lua')
+
+    pyLibrary: dict[str, Any] = {}
+
+    for library in documentation:
+      libraryName: str = library["name"]
+
+      if not libraryName or libraryName == '':
+        # Direct openspace.* functions, add to top level
+        functions  = library["functions"]
+        for func in functions:
+          functionName = func["name"]
+          fullFunctionName = f"openspace.{functionName}"
+          luaCall = partial(async_lua_call, fullFunctionName)
+          if wrapper is not None:
+            luaCall = partial(wrapper, luaCall)
+          pyLibrary[functionName] = luaCall
+      else:
+        # Namespaced functions, add to sublibrary
+        subPyLibrary: dict[str, Any] = {}
+        functions = library["functions"]
+        for func in functions:
+          functionName = func["name"]
+          fullFunctionName = f"openspace.{libraryName}.{functionName}"
+          luaCall = partial(async_lua_call, fullFunctionName)
+          if wrapper is not None:
+            luaCall = partial(wrapper, luaCall)
+          subPyLibrary[functionName] = luaCall
+        pyLibrary[libraryName] = subPyLibrary
+    return toNamedTuple(pyLibrary, "openspace")

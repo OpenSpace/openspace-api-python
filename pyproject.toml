@@ -1,6 +1,6 @@
 [project]
 name = "openspace-api"
-version = "0.1.3"
+version = "0.9.0"
 authors = [
   { name="OpenSpace developers", email="api-python-aaaamu4sytkkayaafonqgmouri@team-openspace.slack.com" },
 ]
