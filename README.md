@@ -50,7 +50,10 @@ pip install -r example/requirements.txt
   ```sh
   python example/example.py
   ```
-  - [example/sync-example.py](https://github.com/OpenSpace/openspace-api-python/blob/master/example/sync-example.py) - Shows how to wrap async API calls to make them synchronous, useful in interactive shells (Python REPL, IPython).
+  - [example/sync-example.py](https://github.com/OpenSpace/openspace-api-python/blob/master/example/sync-example.py) - Shows how to wrap async API calls to make them synchronous, useful in interactive shells (Python REPL, IPython). Run with:
+  ```sh
+  python example/sync-example.py
+  ```
   - [example/notebook-examples.py](https://github.com/OpenSpace/openspace-api-python/blob/master/example/notebook-examples.py) - Self-contained async functions designed for Jupyter notebooks (`await functionName()`) or scripts (`asyncio.run(functionName())`). Covers pausing simulation, navigating to geo coordinates, setting time, and adding globe layers.
 
 ## Requirements
