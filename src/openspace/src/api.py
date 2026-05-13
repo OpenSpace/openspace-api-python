@@ -39,12 +39,14 @@ class Api:
 
   def __init__(self, address: str, port: int):
     self._callbacks: dict[int, Callable[[Any], None]] = {}
+    self._topicCancelEvents: dict[int, asyncio.Event] = {}
     self._nextTopicId: int = 0
     self._userOnConnect: Callable[[], Coroutine[Any, Any, None]] | None = None
+    self._userOnDisconnect: Callable[[], None] | None = None
 
     socket = SocketWrapper(address, port)
-    socket.onConnect(self._onConnect)
-    socket.onDisconnect(lambda: None)
+    socket.onConnect(self.__onConnect)
+    socket.onDisconnect(self.__onDisconnect)
     socket.onMessage(self._handle_message)
 
     self._socket = socket
@@ -59,12 +61,22 @@ class Api:
         else:
           print(f"Error handling message: {messageObject}")
 
-  async def _onConnect(self):
+  async def __onConnect(self):
     # Send API handshake before any user-registered onConnect
     self._socket.send(json.dumps(ApiVersion))
     # Call user defined onConnect if it exists
     if self._userOnConnect is not None:
       await self._userOnConnect()
+
+  def __onDisconnect(self) -> None:
+    # Signal all live topic iterators to stop
+    for cancelEvent in self._topicCancelEvents.values():
+      cancelEvent.set()
+    self._topicCancelEvents.clear()
+    self._callbacks.clear()
+    # Call user defined onDisconnect if it exists
+    if self._userOnDisconnect is not None:
+      self._userOnDisconnect()
 
   def onConnect(self, callback: Callable[[], Coroutine[Any, Any, None]]) -> None:
     """
@@ -75,8 +87,8 @@ class Api:
     self._userOnConnect = callback
 
   def onDisconnect(self, callback: Callable[[], None]):
-    """Set the function to execute when socket is dicsonnected."""
-    self._socket.onDisconnect(callback)
+    """Set the function to execute when socket is disconnected."""
+    self._userOnDisconnect = callback
 
   async def connect(self):
     """Connect to OpenSpace."""
@@ -114,22 +126,35 @@ class Api:
     self._callbacks[topicId] = lambda payload: queue.put_nowait(payload)
 
     cancelEvent = asyncio.Event()
+    self._topicCancelEvents[topicId] = cancelEvent
 
     async def iterator() -> AsyncGenerator[Any, None]:
       while not cancelEvent.is_set():
         try:
-          # Poll the queue with a timeout to allow checking for cancellation
-          # without blocking indefinitely on queue.get()
-          value = await asyncio.wait_for(queue.get(), timeout=0.1)
-          yield value
-        except asyncio.TimeoutError:
-          continue
+          # Race the queue against both the cancel event so we don't block indefinitely
+          # when the connection drops
+          get = asyncio.ensure_future(queue.get())
+          cancel_wait = asyncio.ensure_future(cancelEvent.wait())
+          done, pending = await asyncio.wait(
+            [get, cancel_wait],
+            return_when=asyncio.FIRST_COMPLETED
+          )
+          # Clean up pending tasks to avoid leaks
+          for task in pending:
+            task.cancel()
+          if cancelEvent.is_set():
+            # Topic was cancelled, exit the iterator
+            break
+          # If the get completed successfully, we have a new value to yield
+          if get in done and not get.cancelled():
+            yield get.result()
         except Exception as e:
           print(f"Error in topic {topicId} iterator: {e}")
           print_exc()
           break
-      # Topic has been canceled, remove callback
+      # Topic has been canceled, remove callback and cancel event
       self._callbacks.pop(topicId, None)
+      self._topicCancelEvents.pop(topicId, None)
 
 
     def talk(payload: Any) -> None:
@@ -144,6 +169,7 @@ class Api:
         talk(cancelPayload)
       cancelEvent.set()
       self._callbacks.pop(topicId, None)
+      self._topicCancelEvents.pop(topicId, None)
 
     return Topic(iterator(), talk, cancel)
 
