@@ -69,6 +69,10 @@ class SocketWrapper:
         print(f"Connection error: {e}")
         print_exc()
         break
+      except Exception as e:
+        print(f"Unexpected error: {type(e)}: {e}")
+        print_exc()
+        break
     self.disconnect()
 
   async def connect(self) -> None:
